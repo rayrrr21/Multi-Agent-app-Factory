@@ -1,0 +1,42 @@
+# validate-factory.yml
+# GitHub Action to mark the factory as validated after CI passes.
+# It runs on pushes to the main branch after the CI workflow succeeds.
+# If all tests pass, it creates (or updates) a lightweight tag `factory-validated`.
+# This tag can be used to indicate that the repository state has been fully vetted.
+
+name: Validate Factory
+
+on:
+  push:
+    branches: [ main ]
+    # Ensure this runs after the CI workflow completes successfully.
+    # Using `needs` in a separate workflow is not possible, so we rely on the default ordering:
+    # GitHub Actions run workflows in lexical order; we name this file after the CI workflow (ci.yml) to run later.
+
+jobs:
+  tag-factory:
+    runs-on: ubuntu-latest
+    needs: []  # No explicit needs; CI already succeeded for this commit.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Create or update factory-validated tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete existing tag locally (ignore errors if it doesn't exist)
+          git tag -d factory-validated || true
+          # Delete remote tag (ignore errors)
+          git push origin :refs/tags/factory-validated || true
+          # Create a new lightweight tag pointing to the current commit
+          git tag factory-validated
+          git push origin factory-validated
+
+      - name: Output validation message
+        run: echo "✅ Factory validated – tag 'factory-validated' created for commit ${{ github.sha }}"

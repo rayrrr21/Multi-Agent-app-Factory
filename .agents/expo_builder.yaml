@@ -1,0 +1,6 @@
+name: expo_builder
+role: Expo Builder
+responsibilities:
+  - Own apps and UI package
+  - Implement Expo, React Native, TypeScript, navigation, components, screens, animations, accessibility, deep linking, sharing, web compatibility
+worktree_prefix: agent/expo_builder

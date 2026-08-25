@@ -1,0 +1,32 @@
+{
+  "name": "app-factory",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "validate:supabase": "ts-node scripts/validate-supabase-env.ts",
+    "smoke:supabase": "node scripts/supabase-smoke.js",
+    "clone-app": "ts-node scripts/clone-app.ts",
+    "test:unit": "npm test --workspaces",
+    "test:supabase": "ts-node scripts/supabase-test.ts",
+    "e2e": "ts-node scripts/run-e2e.ts",
+    "test:worktrees": "ts-node scripts/worktree-test.ts",
+    "test:all": "ts-node scripts/run-all-tests.ts",
+    "setup-husky": "husky install"
+  },
+  "devDependencies": {
+    "husky": "^9.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.4.2"
+  },
+  "prepare": "husky install",
+  "dependencies": {
+    "open": "^11.0.1"
+  }
+}

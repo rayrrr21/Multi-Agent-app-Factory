@@ -1,0 +1,10 @@
+{
+  "name": "product_logic",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "private": true,
+  "typings": "index.d.ts",
+  "scripts": { "test": "echo \"No tests\"" },
+  "dependencies": {},
+  "devDependencies": {}
+}

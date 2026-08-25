@@ -1,0 +1,8 @@
+name: product_logic
+role: Product Logic Engineer
+responsibilities:
+  - Own reusable and product‑specific domain logic
+  - Implement scoring, calculations, state machines, validation, business rules
+  - Write unit tests for critical logic
+  - Export services as TypeScript modules for consumption by UI
+worktree_prefix: agent/product_logic

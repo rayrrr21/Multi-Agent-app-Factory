@@ -1,0 +1,10 @@
+name: orchestrator
+role: Orchestrator
+responsibilities:
+  - Own overall architecture
+  - Break product requirements into parallel tasks
+  - Assign tasks to specialized agents
+  - Establish shared contracts before parallel coding
+  - Review agent outputs
+  - Resolve conflicts and coordinate merges
+worktree_prefix: agent/orchestrator

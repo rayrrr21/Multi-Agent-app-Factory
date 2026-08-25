@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM"],
+    "allowJs": true,
+    "jsx": "react-native",
+    "strict": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ui/*": ["packages/ui/src/*"],
+      "@auth/*": ["packages/auth/src/*"],
+      "@analytics/*": ["packages/analytics/src/*"],
+      "@sharing/*": ["packages/sharing/src/*"],
+      "@notifications/*": ["packages/notifications/src/*"],
+      "@payments/*": ["packages/payments/src/*"],
+      "@config/*": ["packages/config/src/*"]
+    }
+  },
+  "include": ["apps/**/*", "packages/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "ui",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "private": true,
+  "typings": "index.d.ts",
+  "scripts": { "test": "echo \"No tests\"" },
+  "dependencies": {
+    "react": "^18.3.0",
+    "react-native": "^0.74.0"
+  },
+  "devDependencies": {}
+}

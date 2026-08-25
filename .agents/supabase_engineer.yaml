@@ -1,0 +1,7 @@
+name: supabase_engineer
+role: Supabase Engineer
+responsibilities:
+  - Own supabase directory and auth package
+  - Configure Supabase project, migrations, RLS, edge functions, storage
+  - Ensure least‑privilege security and no service‑role exposure on client
+worktree_prefix: agent/supabase_engineer
