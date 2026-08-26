@@ -11,7 +11,7 @@ export default function Layout() {
       <Stack.Screen name="signup" options={{ title: 'Sign Up' }} />
       {/* Protected routes */}
       <Stack.Screen name="home" options={{ title: 'Home', requiresAuth: true }} />
-      <Stack.Screen name="profile" options={{ title: 'Profile', requiresAuth: true }} />
+      <Stack.Screen name="profile" options={{ title: 'Profile' }} />
     </Stack>
   );
 }

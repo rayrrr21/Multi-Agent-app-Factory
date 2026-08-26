@@ -27,7 +27,7 @@ function createWorktree(name: string) {
   // Ensure parent folder exists
   fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
   // Add worktree on a new branch to avoid conflicts
-  runCommand(`git worktree add -b ${name} "${worktreePath}" HEAD`);
+  runCommand(`git worktree add -B ${name} "${worktreePath}" HEAD`);
   return worktreePath;
 }
 
@@ -35,8 +35,9 @@ function testWorktree(path: string) {
   const testFile = path + "/tmp_test.txt";
   fs.writeFileSync(testFile, "test " + Date.now());
   // Stage and commit to ensure git can handle it without lock issues
-  runCommand(`git -C ${path} add tmp_test.txt`);
-  runCommand(`git -C ${path} commit -m "Worktree test commit" --allow-empty`);
+  runCommand(`git -C "${path}" add tmp_test.txt`);
+  // Stage and commit to ensure git can handle it without lock issues
+  runCommand(`git -C "${path}" commit -m "Worktree test commit" --allow-empty`);
   // Cleanup the test file
   fs.unlinkSync(testFile);
 }

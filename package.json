@@ -21,6 +21,8 @@
     "setup-husky": "husky install"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "glob": "^13.0.6",
     "husky": "^9.1.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.4.2"

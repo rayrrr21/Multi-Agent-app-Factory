@@ -5,8 +5,10 @@ import http from 'http';
 import open from 'open';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'https://jcqawjpfiduqshwtvjli.supabase.co';
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_EcxDOYl7NnM7_FdTceBV2A_fHOUQ7M-';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseKey;
+const adminClient = createClient(supabaseUrl, serviceRoleKey);
+const baseClient = createClient(supabaseUrl, supabaseKey);
 
-const baseClient = createClient(supabaseUrl!, supabaseKey!);
 
 async function signIn(email: string, password: string) {
   // Attempt to sign in; users are expected to already exist.
@@ -27,16 +29,32 @@ async function signIn(email: string, password: string) {
   return { userId, client: userClient };
 }
 async function signInOrCreate(email: string, password: string) {
-  // Try sign‑in first
+  // Try password sign‑in first
   let result = await signIn(email, password);
   if (result) return result;
 
-  // If sign‑in failed, attempt to sign‑up (user may not exist yet)
-  // Attempt to sign‑up (creates user if not exists)
-  await baseClient.auth.signUp({ email, password }).catch(() => {});
-  // Then sign‑in
-  return await signIn(email, password);
+  // If sign‑in failed (e.g., user does not exist or email not confirmed), attempt sign‑up
+  const { data: signupData, error: signupErr } = await baseClient.auth.signUp({ email, password });
+  if (signupErr) {
+    console.error('❌ Sign‑up failed:', signupErr.message);
+    return null;
+  }
+  const userId = signupData.user?.id;
+  if (!userId) {
+    console.error('❌ No user ID after sign‑up');
+    return null;
+  }
+  // Auto‑confirm email using the service‑role admin client
+  try {
+    await adminClient.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+    });
+  } catch (e) {
+    console.error('❌ Failed to confirm email via admin client:', e);
+  }
 
+  // Now sign‑in with the confirmed account
+  return await signIn(email, password);
 }
 const password = "Delores1978!";
 
@@ -108,9 +126,9 @@ function waitForRedirect(): Promise<{ code: string }> {
 async function runTests() {
   const emailA = "rayrrr@gmail.com";
   const emailB = "asisreallyreal@gmail.com";
-  const userA = await signInWithGitHub();
+  const userA = await signInOrCreate(emailA, password);
   console.log("## USER A AUTH", userA ? "PASS" : "FAIL");
-  const userB = await signInWithGitHub();
+  const userB = await signInOrCreate(emailB, password);
   console.log("## USER B AUTH", userB ? "PASS" : "FAIL");
 
 
