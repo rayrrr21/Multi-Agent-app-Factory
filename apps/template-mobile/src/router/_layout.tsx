@@ -1,17 +1,36 @@
-// apps/template-mobile/src/router/_layout.tsx
 import React from 'react';
-import { Stack } from 'expo-router';
+import { View, Text, StyleSheet } from 'react-native';
+import { Slot } from 'expo-router';
 
 export default function Layout() {
   return (
-    <Stack>
-      {/* Public routes */}
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ title: 'Login' }} />
-      <Stack.Screen name="signup" options={{ title: 'Sign Up' }} />
-      {/* Protected routes */}
-      <Stack.Screen name="home" options={{ title: 'Home', requiresAuth: true }} />
-      <Stack.Screen name="profile" options={{ title: 'Profile' }} />
-    </Stack>
+    <View style={styles.container}>
+      <View testID="app-logo" style={styles.header}>
+        <Text style={styles.headerText}>Factory Test App</Text>
+      </View>
+      <View style={styles.content}>
+        <Slot />
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    padding: 16,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
+  },
+  headerText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+  },
+});
