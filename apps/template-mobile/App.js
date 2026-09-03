@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { registerRootComponent } from 'expo';
 import { View, Text, TextInput, Button, StyleSheet, Platform } from 'react-native';
-import { SEEDED_LOCATIONS } from './src/skyguess/locations';
-import { calculateHaversineDistance, calculateDailyScore, calculatePercentile } from './src/skyguess/scoring';
+import { SEEDED_LOCATIONS } from './src/skyguess/data/locations';
+import { calculateHaversineDistance, calculateDailyScore } from './src/skyguess/services/scoring';
+import { WorldMap } from './src/skyguess/components/WorldMap';
 import { LocationRecord } from './src/skyguess/types';
 
 export default function App() {
@@ -13,6 +14,9 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('Jane Doe');
   const [statusMessage, setStatusMessage] = useState('');
+
+  // Configurable score decay constant (Correction 1: k = 1000)
+  const [decayConstant] = useState(1000);
 
   // Daily SkyGuess Game State
   const [dailyStreak, setDailyStreak] = useState(7);
@@ -30,12 +34,14 @@ export default function App() {
   const [combo, setCombo] = useState(1);
   const [isFlightOver, setIsFlightOver] = useState(false);
   const [bestFlight, setBestFlight] = useState(18422);
-  const [altitudeLevel, setAltitudeLevel] = useState('30,000 FT'); // '30,000 FT', '10,000 FT', '3,000 FT'
+
+  // Altitude Information Loss Mechanic (Correction 7: framing/crop variants, not CSS blur)
+  const [altitudeLevel, setAltitudeLevel] = useState('30,000 FT');
   const [altitudeMultiplier, setAltitudeMultiplier] = useState(5);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [feedbackState, setFeedbackState] = useState(null); // 'correct' | 'wrong'
+  const [feedbackState, setFeedbackState] = useState(null);
 
-  // Daily Challenge Location (Seeded: Salt Lake City)
+  // Seeded Daily Location
   const todayLocation = SEEDED_LOCATIONS[0];
 
   useEffect(() => {
@@ -95,7 +101,7 @@ export default function App() {
   };
 
   // --------------------------------------------------------------------------
-  // DAILY SKYGUESS LOGIC
+  // DAILY SKYGUESS LOGIC (Correction 1 & 2: Configurable decay k=1000, No fake percentiles)
   // --------------------------------------------------------------------------
   const handleLockDailyGuess = () => {
     const distKm = calculateHaversineDistance(
@@ -104,13 +110,13 @@ export default function App() {
       todayLocation.latitude,
       todayLocation.longitude
     );
-    const score = calculateDailyScore(distKm);
-    const percentile = calculatePercentile(score);
+
+    // Score = round(10,000 * Math.exp(-distanceKm / 1000))
+    const score = calculateDailyScore(distKm, decayConstant);
 
     setDailyResult({
       distKm,
       score,
-      percentile,
       guessLat: selectedPin.lat,
       guessLng: selectedPin.lng,
     });
@@ -120,7 +126,7 @@ export default function App() {
   };
 
   // --------------------------------------------------------------------------
-  // SKYRUSH ARCADE LOGIC
+  // SKYRUSH ARCADE LOGIC (Correction 7 & 8: altitude framing & 4 question categories)
   // --------------------------------------------------------------------------
   const startSkyRushRun = () => {
     setSkyRushActive(true);
@@ -138,42 +144,49 @@ export default function App() {
 
   const currentRushLocation = SEEDED_LOCATIONS[skyRushIndex % SEEDED_LOCATIONS.length];
 
-  // Question generator for SkyRush
+  // 4 Specific Question Categories (Correction 8: Country, Region, City, Terrain)
   const getSkyRushQuestion = (loc) => {
-    if (skyRushIndex % 4 === 0) {
+    const categoryIndex = skyRushIndex % 4;
+
+    if (categoryIndex === 0) {
       return {
-        prompt: `Is this ${loc.region} or ${loc.distractors.region}?`,
-        optionA: loc.region,
-        optionB: loc.distractors.region,
+        prompt: `Country Check: Is this ${loc.country} or ${loc.distractors.country}?`,
+        optionA: loc.country,
+        optionB: loc.distractors.country,
         correct: 'A',
+        category: 'Country',
       };
     }
-    if (skyRushIndex % 4 === 1) {
+    if (categoryIndex === 1) {
       return {
-        prompt: `Is this ${loc.country} or ${loc.distractors.country}?`,
-        optionA: loc.distractors.country,
-        optionB: loc.country,
+        prompt: `Region Check: Is this ${loc.region} or ${loc.distractors.region}?`,
+        optionA: loc.distractors.region,
+        optionB: loc.region,
         correct: 'B',
+        category: 'Region',
       };
     }
-    if (skyRushIndex % 4 === 2) {
+    if (categoryIndex === 2) {
       return {
-        prompt: `Terrain check: ${loc.terrain} or ${loc.distractors.terrain}?`,
-        optionA: loc.terrain,
-        optionB: loc.distractors.terrain,
+        prompt: `City Check: Is this ${loc.city} or ${loc.distractors.city}?`,
+        optionA: loc.city,
+        optionB: loc.distractors.city,
         correct: 'A',
+        category: 'City',
       };
     }
     return {
-      prompt: `Which city is this? ${loc.city} or ${loc.distractors.city}?`,
-      optionA: loc.distractors.city,
-      optionB: loc.city,
+      prompt: `Terrain Classification: ${loc.terrain} or ${loc.distractors.terrain}?`,
+      optionA: loc.distractors.terrain,
+      optionB: loc.terrain,
       correct: 'B',
+      category: 'Terrain',
     };
   };
 
   const currentQuestion = getSkyRushQuestion(currentRushLocation);
 
+  // Altitude Information Loss Mechanic (Correction 7: Crop / Scale Viewport Framing)
   const handleDescendAltitude = () => {
     if (altitudeLevel === '30,000 FT') {
       setAltitudeLevel('10,000 FT');
@@ -182,6 +195,12 @@ export default function App() {
       setAltitudeLevel('3,000 FT');
       setAltitudeMultiplier(1);
     }
+  };
+
+  const getImageForAltitude = (loc) => {
+    if (altitudeLevel === '30,000 FT' && loc.crop30k) return loc.crop30k;
+    if (altitudeLevel === '10,000 FT' && loc.crop10k) return loc.crop10k;
+    return loc.imageUrl;
   };
 
   const handleAnswerSkyRush = (option) => {
@@ -209,7 +228,7 @@ export default function App() {
         setAltitudeLevel('30,000 FT');
         setAltitudeMultiplier(5);
         setSkyRushIndex((prev) => prev + 1);
-      }, 1000);
+      }, 900);
     } else {
       setFeedbackState('wrong');
       const newLives = lives - 1;
@@ -219,7 +238,7 @@ export default function App() {
       if (newLives <= 0) {
         setTimeout(() => {
           setIsFlightOver(true);
-        }, 1000);
+        }, 900);
       } else {
         setTimeout(() => {
           setFeedbackState(null);
@@ -227,17 +246,17 @@ export default function App() {
           setAltitudeLevel('30,000 FT');
           setAltitudeMultiplier(5);
           setSkyRushIndex((prev) => prev + 1);
-        }, 1000);
+        }, 900);
       }
     }
   };
 
   const fillDemoCreds = () => {
-    setEmail('player@skyguess.app');
+    setEmail('pilot@skyguess.app');
     setPassword('SkyGuess2026!');
   };
 
-  // E2E Contract helper: LoginForm
+  // Legacy Playwright contract compatibility: LoginForm
   const renderLoginForm = () => {
     if (Platform.OS === 'web') {
       return (
@@ -254,7 +273,7 @@ export default function App() {
         }}>
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <span style={{ fontSize: '36px' }}>✈️</span>
-            <h2 style={{ fontSize: '24px', fontWeight: '700', marginTop: '8px', marginBottom: '4px' }}>Player Sign In</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: '700', marginTop: '8px', marginBottom: '4px' }}>Pilot Sign In</h2>
             <p style={{ color: '#94A3B8', fontSize: '14px' }}>Save your daily streaks and SkyRush flight records</p>
           </div>
 
@@ -265,7 +284,7 @@ export default function App() {
                 data-testid="email-input"
                 name="email"
                 type="email"
-                placeholder="player@skyguess.app"
+                placeholder="pilot@skyguess.app"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{
@@ -455,14 +474,14 @@ export default function App() {
                 <span style={{ fontSize: '12px', color: '#F59E0B' }}>Active Streak</span>
               </div>
               <div style={{ backgroundColor: '#1E293B', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>PASSPORT DISCOVERED</span>
-                <div style={{ fontSize: '30px', fontWeight: '800', color: '#A855F7', marginTop: '6px' }}>47 / 195</div>
-                <span style={{ fontSize: '12px', color: '#A855F7' }}>24% Earth Explored</span>
+                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>SEEDED LOCATIONS</span>
+                <div style={{ fontSize: '30px', fontWeight: '800', color: '#A855F7', marginTop: '6px' }}>{SEEDED_LOCATIONS.length} Locations</div>
+                <span style={{ fontSize: '12px', color: '#A855F7' }}>Explicit Licensing</span>
               </div>
               <div style={{ backgroundColor: '#1E293B', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>E2E CONTRACT GUARD</span>
-                <div style={{ fontSize: '30px', fontWeight: '800', color: '#10B981', marginTop: '6px' }}>7 / 7 Green</div>
-                <span style={{ fontSize: '12px', color: '#10B981' }}>Playwright Verified</span>
+                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>SCORING DECAY CONSTANT</span>
+                <div style={{ fontSize: '30px', fontWeight: '800', color: '#10B981', marginTop: '6px' }}>k = {decayConstant}</div>
+                <span style={{ fontSize: '12px', color: '#10B981' }}>Configurable Curve</span>
               </div>
             </div>
           </div>
@@ -496,7 +515,7 @@ export default function App() {
                   <div style={{ fontSize: '24px', fontWeight: '800', color: '#38BDF8', marginTop: '4px' }}>✈️ {distanceMiles.toLocaleString()} mi</div>
                 </div>
                 <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>LOCATIONS IDENTIFIED</span>
+                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>ROUNDS COMPLETED</span>
                   <div style={{ fontSize: '24px', fontWeight: '800', color: '#10B981', marginTop: '4px' }}>🌎 {skyRushIndex}</div>
                 </div>
                 <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
@@ -504,7 +523,7 @@ export default function App() {
                   <div style={{ fontSize: '24px', fontWeight: '800', color: '#F59E0B', marginTop: '4px' }}>🔥 {streak}</div>
                 </div>
                 <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>BEST COMBO</span>
+                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>MAX COMBO</span>
                   <div style={{ fontSize: '24px', fontWeight: '800', color: '#A855F7', marginTop: '4px' }}>⚡ ×{combo}</div>
                 </div>
               </div>
@@ -544,7 +563,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Altitude Risk Banner */}
+            {/* Altitude Information Loss Mechanic (Correction 7: Framing / Viewport context) */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0F172A', padding: '10px 16px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '16px' }}>
               <span style={{ fontSize: '13px', fontWeight: '700', color: '#F8FAFC' }}>
                 ALTITUDE: <span style={{ color: '#F59E0B' }}>{altitudeLevel}</span> ({altitudeMultiplier}× Reward)
@@ -552,28 +571,28 @@ export default function App() {
               {altitudeLevel !== '3,000 FT' ? (
                 <button
                   onClick={handleDescendAltitude}
-                  style={{ padding: '4px 10px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', border: '1px solid #F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', cursor: 'pointer' }}
+                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', border: '1px solid #F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', cursor: 'pointer' }}
                 >
-                  🛬 DESCEND (Better View)
+                  🛬 DESCEND (More Context)
                 </button>
               ) : null}
             </div>
 
-            {/* Aerial Image Card */}
+            {/* Aerial Image Card with Altitude Crop Framing */}
             <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', height: '320px', marginBottom: '20px', border: '1px solid #334155', backgroundColor: '#1E293B' }}>
               <img
-                src={currentRushLocation.imageUrl}
+                src={getImageForAltitude(currentRushLocation)}
                 alt="Aerial view"
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
-                  filter: altitudeLevel === '30,000 FT' ? 'blur(4px)' : altitudeLevel === '10,000 FT' ? 'blur(1.5px)' : 'none',
-                  transition: 'filter 0.3s ease'
+                  objectFit: altitudeLevel === '30,000 FT' ? 'contain' : 'cover',
+                  padding: altitudeLevel === '30,000 FT' ? '24px' : '0',
+                  transition: 'all 0.3s ease'
                 }}
               />
-              <div style={{ position: 'absolute', bottom: '12px', left: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
-                Question {skyRushIndex + 1}: {currentQuestion.prompt}
+              <div style={{ position: 'absolute', bottom: '12px', left: '12px', backgroundColor: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+                {currentQuestion.category}: {currentQuestion.prompt}
               </div>
             </div>
 
@@ -658,11 +677,18 @@ export default function App() {
               {dailyCompleted && dailyResult ? (
                 <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #10B981', textAlign: 'center' }}>
                   <div style={{ fontSize: '24px', fontWeight: '900', color: '#10B981' }}>{dailyResult.score.toLocaleString()} POINTS</div>
-                  <div style={{ fontSize: '14px', color: '#F8FAFC', margin: '4px 0' }}>{dailyResult.distKm} km away • <strong>TOP {dailyResult.percentile}% TODAY</strong></div>
-                  <div style={{ fontSize: '13px', color: '#94A3B8', marginTop: '6px' }}>Correct: {todayLocation.city}, {todayLocation.region}, {todayLocation.country}</div>
-                  <p style={{ fontSize: '12px', color: '#CBD5E1', fontStyle: 'italic', marginTop: '8px', marginBottom: '12px' }}>"{todayLocation.fact}"</p>
+                  <div style={{ fontSize: '14px', color: '#F8FAFC', margin: '4px 0' }}>Distance: <strong>{dailyResult.distKm} km away</strong></div>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic', marginBottom: '8px' }}>(Development Data Curve k={decayConstant})</div>
+                  <div style={{ fontSize: '13px', color: '#CBD5E1', fontWeight: '700' }}>Correct: {todayLocation.city}, {todayLocation.region}, {todayLocation.country}</div>
+                  <p style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic', marginTop: '6px', marginBottom: '12px' }}>"{todayLocation.fact}"</p>
+                  
+                  {/* Licensing attribution (Correction 3) */}
+                  <div style={{ fontSize: '11px', color: '#64748B', marginBottom: '12px' }}>
+                    📷 {todayLocation.attribution} • {todayLocation.license}
+                  </div>
+
                   <button
-                    onClick={() => alert(`SKYGUESS #042 🌎\n📍 ${dailyResult.score} pts\n🎯 ${dailyResult.distKm} km\n🔥 ${dailyStreak}-day streak\nTop ${dailyResult.percentile}%\nCan you beat me?`)}
+                    onClick={() => alert(`SKYGUESS #042 🌎\n📍 ${dailyResult.score} pts\n🎯 ${dailyResult.distKm} km\n🔥 ${dailyStreak}-day streak\nCan you beat me?`)}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: '#38BDF8', color: '#0F172A', fontWeight: '800', cursor: 'pointer' }}
                   >
                     SHARE RESULT 📤
@@ -703,73 +729,14 @@ export default function App() {
             </div>
           </div>
 
-          {/* INTERACTIVE MAP MODAL FOR DAILY GUESS */}
+          {/* Abstracted WorldMap Component (Correction 9) */}
           {mapOpen ? (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.95)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '24px', color: '#F8FAFC' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '22px' }}>MAKE YOUR GUESS</h2>
-                  <p style={{ margin: 0, color: '#94A3B8', fontSize: '13px' }}>Tap anywhere on the world map to place your pin, then lock in your guess.</p>
-                </div>
-                <button onClick={() => setMapOpen(false)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '24px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-              </div>
-
-              {/* Interactive World Map Canvas Container */}
-              <div
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const y = e.clientY - rect.top;
-                  const lng = (x / rect.width) * 360 - 180;
-                  const lat = 90 - (y / rect.height) * 180;
-                  setSelectedPin({ lat: Math.round(lat * 10) / 10, lng: Math.round(lng * 10) / 10 });
-                }}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#0F172A',
-                  borderRadius: '16px',
-                  border: '2px solid #38BDF8',
-                  position: 'relative',
-                  backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
-                  backgroundSize: '24px 24px',
-                  cursor: 'crosshair',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justify: 'center'
-                }}
-              >
-                {/* Stylized SVG World Map Lines */}
-                <svg width="100%" height="100%" style={{ opacity: 0.25, position: 'absolute' }}>
-                  <circle cx="50%" cy="50%" r="40%" stroke="#38BDF8" strokeWidth="2" fill="none" />
-                  <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#38BDF8" strokeWidth="1" strokeDasharray="4" />
-                  <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#38BDF8" strokeWidth="1" strokeDasharray="4" />
-                </svg>
-
-                {/* Placed Pin Marker */}
-                <div style={{
-                  position: 'absolute',
-                  left: `${((selectedPin.lng + 180) / 360) * 100}%`,
-                  top: `${((90 - selectedPin.lat) / 180) * 100}%`,
-                  transform: 'translate(-50%, -100%)',
-                  pointerEvents: 'none'
-                }}>
-                  <div style={{ fontSize: '32px' }}>📍</div>
-                  <div style={{ backgroundColor: '#0284C7', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                    {selectedPin.lat}°, {selectedPin.lng}°
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-                <span style={{ fontSize: '14px', color: '#94A3B8' }}>Selected Pin: <strong>{selectedPin.lat}°, {selectedPin.lng}°</strong></span>
-                <button
-                  onClick={handleLockDailyGuess}
-                  style={{ padding: '14px 28px', fontSize: '16px', fontWeight: '800', borderRadius: '10px', border: 'none', backgroundColor: '#10B981', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.4)' }}
-                >
-                  LOCK IN GUESS 🎯
-                </button>
-              </div>
-            </div>
+            <WorldMap
+              selectedPin={selectedPin}
+              onPinSelect={setSelectedPin}
+              onSubmitGuess={handleLockDailyGuess}
+              onClose={() => setMapOpen(false)}
+            />
           ) : null}
         </div>
       );
