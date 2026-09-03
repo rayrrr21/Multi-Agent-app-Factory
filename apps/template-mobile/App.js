@@ -4,7 +4,13 @@ import { View, Text, TextInput, Button, StyleSheet, Platform } from 'react-nativ
 import { SEEDED_LOCATIONS } from './src/skyguess/data/locations';
 import { calculateHaversineDistance, calculateDailyScore } from './src/skyguess/services/scoring';
 import { WorldMap } from './src/skyguess/components/WorldMap';
-import { LocationRecord } from './src/skyguess/types';
+
+// SkyRush UI/UX Components
+import { SkyRushHUD } from './src/skyguess/components/skyrush/SkyRushHUD';
+import { FlightProgress } from './src/skyguess/components/skyrush/FlightProgress';
+import { AnswerDeck } from './src/skyguess/components/skyrush/AnswerDeck';
+import { AltitudeControl } from './src/skyguess/components/skyrush/AltitudeControl';
+import { FlightOverScreen } from './src/skyguess/components/skyrush/FlightOverScreen';
 
 export default function App() {
   // Navigation & User Auth state
@@ -15,7 +21,7 @@ export default function App() {
   const [displayName, setDisplayName] = useState('Jane Doe');
   const [statusMessage, setStatusMessage] = useState('');
 
-  // Configurable score decay constant (Correction 1: k = 1000)
+  // Configurable score decay constant (k = 1000)
   const [decayConstant] = useState(1000);
 
   // Daily SkyGuess Game State
@@ -32,10 +38,13 @@ export default function App() {
   const [distanceMiles, setDistanceMiles] = useState(0);
   const [streak, setStreak] = useState(0);
   const [combo, setCombo] = useState(1);
+  const [maxCombo, setMaxCombo] = useState(1);
+  const [correctCount, setCorrectCount] = useState(0);
   const [isFlightOver, setIsFlightOver] = useState(false);
   const [bestFlight, setBestFlight] = useState(18422);
+  const [isPersonalBest, setIsPersonalBest] = useState(false);
 
-  // Altitude Information Loss Mechanic (Correction 7: framing/crop variants, not CSS blur)
+  // Altitude Information Loss Mechanic
   const [altitudeLevel, setAltitudeLevel] = useState('30,000 FT');
   const [altitudeMultiplier, setAltitudeMultiplier] = useState(5);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -101,7 +110,7 @@ export default function App() {
   };
 
   // --------------------------------------------------------------------------
-  // DAILY SKYGUESS LOGIC (Correction 1 & 2: Configurable decay k=1000, No fake percentiles)
+  // DAILY SKYGUESS LOGIC
   // --------------------------------------------------------------------------
   const handleLockDailyGuess = () => {
     const distKm = calculateHaversineDistance(
@@ -111,7 +120,6 @@ export default function App() {
       todayLocation.longitude
     );
 
-    // Score = round(10,000 * Math.exp(-distanceKm / 1000))
     const score = calculateDailyScore(distKm, decayConstant);
 
     setDailyResult({
@@ -126,7 +134,7 @@ export default function App() {
   };
 
   // --------------------------------------------------------------------------
-  // SKYRUSH ARCADE LOGIC (Correction 7 & 8: altitude framing & 4 question categories)
+  // SKYRUSH ARCADE LOGIC
   // --------------------------------------------------------------------------
   const startSkyRushRun = () => {
     setSkyRushActive(true);
@@ -135,7 +143,10 @@ export default function App() {
     setDistanceMiles(0);
     setStreak(0);
     setCombo(1);
+    setMaxCombo(1);
+    setCorrectCount(0);
     setIsFlightOver(false);
+    setIsPersonalBest(false);
     setAltitudeLevel('30,000 FT');
     setAltitudeMultiplier(5);
     setSelectedAnswer(null);
@@ -144,7 +155,6 @@ export default function App() {
 
   const currentRushLocation = SEEDED_LOCATIONS[skyRushIndex % SEEDED_LOCATIONS.length];
 
-  // 4 Specific Question Categories (Correction 8: Country, Region, City, Terrain)
   const getSkyRushQuestion = (loc) => {
     const categoryIndex = skyRushIndex % 4;
 
@@ -186,7 +196,6 @@ export default function App() {
 
   const currentQuestion = getSkyRushQuestion(currentRushLocation);
 
-  // Altitude Information Loss Mechanic (Correction 7: Crop / Scale Viewport Framing)
   const handleDescendAltitude = () => {
     if (altitudeLevel === '30,000 FT') {
       setAltitudeLevel('10,000 FT');
@@ -209,14 +218,23 @@ export default function App() {
 
     if (option === currentQuestion.correct) {
       setFeedbackState('correct');
+      const newCorrectCount = correctCount + 1;
+      setCorrectCount(newCorrectCount);
+
       const distanceGained = Math.round(450 * combo * (altitudeMultiplier / 2));
       const newTotalDistance = distanceMiles + distanceGained;
       setDistanceMiles(newTotalDistance);
-      setStreak((prev) => prev + 1);
-      setCombo((prev) => Math.min(prev + 1, 8));
+
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+
+      const newCombo = Math.min(combo + 1, 8);
+      setCombo(newCombo);
+      if (newCombo > maxCombo) setMaxCombo(newCombo);
 
       if (newTotalDistance > bestFlight) {
         setBestFlight(newTotalDistance);
+        setIsPersonalBest(true);
         if (typeof window !== 'undefined') {
           window.localStorage.setItem('skyguess_best_flight', newTotalDistance.toString());
         }
@@ -228,7 +246,7 @@ export default function App() {
         setAltitudeLevel('30,000 FT');
         setAltitudeMultiplier(5);
         setSkyRushIndex((prev) => prev + 1);
-      }, 900);
+      }, 600);
     } else {
       setFeedbackState('wrong');
       const newLives = lives - 1;
@@ -238,7 +256,7 @@ export default function App() {
       if (newLives <= 0) {
         setTimeout(() => {
           setIsFlightOver(true);
-        }, 900);
+        }, 600);
       } else {
         setTimeout(() => {
           setFeedbackState(null);
@@ -246,7 +264,7 @@ export default function App() {
           setAltitudeLevel('30,000 FT');
           setAltitudeMultiplier(5);
           setSkyRushIndex((prev) => prev + 1);
-        }, 900);
+        }, 600);
       }
     }
   };
@@ -504,82 +522,41 @@ export default function App() {
       if (skyRushActive) {
         if (isFlightOver) {
           return (
-            <div style={{ maxWidth: '540px', margin: '40px auto', padding: '36px 28px', backgroundColor: '#1E293B', borderRadius: '20px', border: '2px solid #EF4444', color: '#F8FAFC', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25)' }}>
-              <span style={{ fontSize: '48px' }}>💥</span>
-              <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#EF4444', margin: '8px 0 4px 0' }}>FLIGHT OVER</h1>
-              <p style={{ color: '#94A3B8', fontSize: '15px', fontStyle: 'italic', marginBottom: '28px' }}>You crashed in Mongolia.</p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '32px' }}>
-                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>DISTANCE FLOWN</span>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#38BDF8', marginTop: '4px' }}>✈️ {distanceMiles.toLocaleString()} mi</div>
-                </div>
-                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>ROUNDS COMPLETED</span>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#10B981', marginTop: '4px' }}>🌎 {skyRushIndex}</div>
-                </div>
-                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>BEST STREAK</span>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#F59E0B', marginTop: '4px' }}>🔥 {streak}</div>
-                </div>
-                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>MAX COMBO</span>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#A855F7', marginTop: '4px' }}>⚡ ×{combo}</div>
-                </div>
-              </div>
-
-              <button
-                onClick={startSkyRushRun}
-                style={{ width: '100%', padding: '16px', fontSize: '18px', fontWeight: '800', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#FFFFFF', cursor: 'pointer', marginBottom: '12px', boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.4)' }}
-              >
-                ✈️ FLY AGAIN
-              </button>
-
-              <button
-                onClick={() => setSkyRushActive(false)}
-                style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: '600', borderRadius: '10px', border: '1px solid #334155', backgroundColor: 'transparent', color: '#94A3B8', cursor: 'pointer' }}
-              >
-                Exit to Main Menu
-              </button>
-            </div>
+            <FlightOverScreen
+              distanceMiles={distanceMiles}
+              correctCount={correctCount}
+              bestStreak={streak}
+              maxCombo={maxCombo}
+              isPersonalBest={isPersonalBest}
+              onFlyAgain={startSkyRushRun}
+              onExit={() => setSkyRushActive(false)}
+            />
           );
         }
 
         return (
-          <div style={{ maxWidth: '640px', margin: '20px auto', padding: '20px', color: '#F8FAFC' }}>
-            {/* SkyRush Top HUD */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', backgroundColor: '#1E293B', borderRadius: '14px', border: '1px solid #334155', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '20px', fontWeight: '800', color: '#38BDF8' }}>
-                ✈️ <span>{distanceMiles.toLocaleString()} MI</span>
-              </div>
+          <div style={{ maxWidth: '640px', margin: '20px auto', padding: '16px', color: '#F8FAFC' }}>
+            {/* TOP: Compact Floating SkyRush HUD */}
+            <SkyRushHUD
+              distanceMiles={distanceMiles}
+              streak={streak}
+              combo={combo}
+              lives={lives}
+              isNewBest={isPersonalBest}
+            />
 
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', fontSize: '14px', fontWeight: '700' }}>
-                <span style={{ color: '#F59E0B' }}>🔥 {streak}</span>
-                <span style={{ color: '#A855F7' }}>⚡ ×{combo}</span>
-                <span>
-                  {'❤️'.repeat(lives)}
-                  {'🖤'.repeat(3 - lives)}
-                </span>
-              </div>
-            </div>
+            {/* Global Flight Progress Track */}
+            <FlightProgress distanceMiles={distanceMiles} />
 
-            {/* Altitude Information Loss Mechanic (Correction 7: Framing / Viewport context) */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0F172A', padding: '10px 16px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '16px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#F8FAFC' }}>
-                ALTITUDE: <span style={{ color: '#F59E0B' }}>{altitudeLevel}</span> ({altitudeMultiplier}× Reward)
-              </span>
-              {altitudeLevel !== '3,000 FT' ? (
-                <button
-                  onClick={handleDescendAltitude}
-                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', border: '1px solid #F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', cursor: 'pointer' }}
-                >
-                  🛬 DESCEND (More Context)
-                </button>
-              ) : null}
-            </div>
+            {/* Altitude Control Bar */}
+            <AltitudeControl
+              altitudeLevel={altitudeLevel}
+              altitudeMultiplier={altitudeMultiplier}
+              onDescend={handleDescendAltitude}
+            />
 
-            {/* Aerial Image Card with Altitude Crop Framing */}
-            <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', height: '320px', marginBottom: '20px', border: '1px solid #334155', backgroundColor: '#1E293B' }}>
+            {/* CENTER: Edge-to-Edge Aerial Image Card (60-70% Viewport) */}
+            <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', height: '340px', marginTop: '14px', marginBottom: '14px', border: '1px solid #334155', backgroundColor: '#1E293B', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)' }}>
               <img
                 src={getImageForAltitude(currentRushLocation)}
                 alt="Aerial view"
@@ -587,53 +564,29 @@ export default function App() {
                   width: '100%',
                   height: '100%',
                   objectFit: altitudeLevel === '30,000 FT' ? 'contain' : 'cover',
-                  padding: altitudeLevel === '30,000 FT' ? '24px' : '0',
-                  transition: 'all 0.3s ease'
+                  padding: altitudeLevel === '30,000 FT' ? '28px' : '0',
+                  transition: 'all 0.3s ease',
                 }}
               />
-              <div style={{ position: 'absolute', bottom: '12px', left: '12px', backgroundColor: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
-                {currentQuestion.category}: {currentQuestion.prompt}
+
+              <div style={{ position: 'absolute', bottom: '14px', left: '14px', right: '14px', backgroundColor: 'rgba(15, 23, 42, 0.88)', backdropFilter: 'blur(10px)', padding: '10px 16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: '800', color: '#F8FAFC' }}>
+                  {currentQuestion.prompt}
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#334155', color: '#38BDF8', padding: '3px 8px', borderRadius: '6px' }}>
+                  {currentQuestion.category}
+                </span>
               </div>
             </div>
 
-            {/* 2-Choice Action Buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <button
-                onClick={() => handleAnswerSkyRush('A')}
-                disabled={feedbackState !== null}
-                style={{
-                  padding: '20px',
-                  fontSize: '18px',
-                  fontWeight: '800',
-                  borderRadius: '12px',
-                  border: '2px solid #334155',
-                  backgroundColor: feedbackState && selectedAnswer === 'A' ? (feedbackState === 'correct' ? '#10B981' : '#EF4444') : '#1E293B',
-                  color: '#FFFFFF',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {currentQuestion.optionA}
-              </button>
-
-              <button
-                onClick={() => handleAnswerSkyRush('B')}
-                disabled={feedbackState !== null}
-                style={{
-                  padding: '20px',
-                  fontSize: '18px',
-                  fontWeight: '800',
-                  borderRadius: '12px',
-                  border: '2px solid #334155',
-                  backgroundColor: feedbackState && selectedAnswer === 'B' ? (feedbackState === 'correct' ? '#10B981' : '#EF4444') : '#1E293B',
-                  color: '#FFFFFF',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {currentQuestion.optionB}
-              </button>
-            </div>
+            {/* BOTTOM: Tactile 1-Thumb Choice Cards */}
+            <AnswerDeck
+              optionA={currentQuestion.optionA}
+              optionB={currentQuestion.optionB}
+              selectedAnswer={selectedAnswer}
+              feedbackState={feedbackState}
+              onSelectOption={handleAnswerSkyRush}
+            />
           </div>
         );
       }
@@ -682,7 +635,7 @@ export default function App() {
                   <div style={{ fontSize: '13px', color: '#CBD5E1', fontWeight: '700' }}>Correct: {todayLocation.city}, {todayLocation.region}, {todayLocation.country}</div>
                   <p style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic', marginTop: '6px', marginBottom: '12px' }}>"{todayLocation.fact}"</p>
                   
-                  {/* Licensing attribution (Correction 3) */}
+                  {/* Licensing attribution */}
                   <div style={{ fontSize: '11px', color: '#64748B', marginBottom: '12px' }}>
                     📷 {todayLocation.attribution} • {todayLocation.license}
                   </div>
@@ -729,7 +682,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Abstracted WorldMap Component (Correction 9) */}
+          {/* Abstracted WorldMap Component */}
           {mapOpen ? (
             <WorldMap
               selectedPin={selectedPin}

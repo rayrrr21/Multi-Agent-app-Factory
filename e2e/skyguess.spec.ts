@@ -44,7 +44,7 @@ test.describe('SKYGUESS Gameplay Contract', () => {
     const altitudeBanner = page.locator('text=/ALTITUDE:/');
     await expect(altitudeBanner).toBeVisible();
 
-    // 3. Test Altitude Descent (Correction 7)
+    // 3. Test Altitude Descent
     const descendBtn = page.locator('button:has-text("DESCEND")');
     await expect(descendBtn).toBeVisible();
     await descendBtn.click();
@@ -57,7 +57,7 @@ test.describe('SKYGUESS Gameplay Contract', () => {
     await firstOption.click();
 
     // 5. Verify distance / streak telemetry progression
-    await expect(page.locator('text=/MI/')).toBeVisible();
+    await expect(page.locator('text=/MI/').first()).toBeVisible();
   });
 
 });
