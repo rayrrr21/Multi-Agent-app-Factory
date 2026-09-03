@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export interface WorldMapProps {
   selectedPin: { lat: number; lng: number };
@@ -13,6 +13,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   onSubmitGuess,
   onClose,
 }) => {
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+
   const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -36,67 +39,128 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        zIndex: 1000,
+        backgroundColor: 'rgba(15, 23, 42, 0.98)',
+        zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
-        padding: '24px',
+        padding: '16px',
         color: '#F8FAFC',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px',
-        }}
-      >
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '22px' }}>MAKE YOUR GUESS</h2>
-          <p style={{ margin: 0, color: '#94A3B8', fontSize: '13px' }}>
-            Tap anywhere on the map to place your pin, then lock in your guess.
-          </p>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800' }}>SELECT LOCATION ON EARTH</h2>
+          <p style={{ margin: 0, color: '#94A3B8', fontSize: '13px' }}>Tap landmasses to drop pin</p>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#EF4444',
-            fontSize: '24px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
-        >
-          ✕
-        </button>
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={() => setZoomLevel((z) => Math.min(z + 0.3, 2.5))}
+            style={{ padding: '6px 12px', fontSize: '14px', fontWeight: '700', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#1E293B', color: '#FFF', cursor: 'pointer' }}
+          >
+            🔍 +
+          </button>
+          <button
+            onClick={() => setZoomLevel((z) => Math.max(z - 0.3, 1))}
+            style={{ padding: '6px 12px', fontSize: '14px', fontWeight: '700', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#1E293B', color: '#FFF', cursor: 'pointer' }}
+          >
+            🔍 -
+          </button>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '24px', cursor: 'pointer', fontWeight: 'bold', marginLeft: '8px' }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
-      {/* Interactive Map Canvas */}
+      {/* Interactive Geographic World Map Canvas */}
       <div
         onClick={handleMapClick}
         style={{
           flex: 1,
-          backgroundColor: '#0F172A',
+          backgroundColor: '#0A1120',
           borderRadius: '16px',
-          border: '2px solid #38BDF8',
+          border: '2px solid #0284C7',
           position: 'relative',
-          backgroundImage:
-            'radial-gradient(#334155 1.5px, transparent 1.5px)',
-          backgroundSize: '24px 24px',
-          cursor: 'crosshair',
           overflow: 'hidden',
+          cursor: 'crosshair',
+          boxShadow: '0 20px 30px rgba(0,0,0,0.5)',
         }}
       >
-        {/* World Grid Lines Overlay */}
-        <svg width="100%" height="100%" style={{ opacity: 0.35, position: 'absolute' }}>
-          {/* Equator & Prime Meridian */}
-          <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#38BDF8" strokeWidth="2" strokeDasharray="6" />
-          <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#38BDF8" strokeWidth="2" strokeDasharray="6" />
-          {/* Tropics */}
-          <line x1="0" y1="36.8%" x2="100%" y2="36.8%" stroke="#94A3B8" strokeWidth="1" strokeDasharray="3" />
-          <line x1="0" y1="63.2%" x2="100%" y2="63.2%" stroke="#94A3B8" strokeWidth="1" strokeDasharray="3" />
+        <svg
+          viewBox="0 0 1000 500"
+          preserveAspectRatio="none"
+          style={{
+            width: '100%',
+            height: '100%',
+            transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+            transition: 'transform 0.2s ease-out',
+          }}
+        >
+          {/* Oceans Backdrop */}
+          <rect width="1000" height="500" fill="#0B192C" />
+
+          {/* Graticule Lines (Equator & Meridian) */}
+          <line x1="0" y1="250" x2="1000" y2="250" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1.5" strokeDasharray="6 4" />
+          <line x1="500" y1="0" x2="500" y2="500" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1.5" strokeDasharray="6 4" />
+
+          {/* ------------------------------------------------------------- */}
+          {/* RECOGNIZABLE CONTINENTS & LANDMASS SVG PATHS */}
+          {/* ------------------------------------------------------------- */}
+
+          {/* North America */}
+          <path
+            d="M 120 60 L 280 60 L 320 120 L 290 180 L 260 220 L 220 280 L 190 270 L 160 220 L 110 180 L 80 140 Z"
+            fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5"
+          />
+          {/* Central America & Caribbean */}
+          <path d="M 220 280 L 240 310 L 260 300 L 240 280 Z" fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5" />
+
+          {/* South America */}
+          <path
+            d="M 260 300 L 340 330 L 380 400 L 320 480 L 280 460 L 260 380 L 240 330 Z"
+            fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5"
+          />
+
+          {/* Europe */}
+          <path
+            d="M 460 70 L 560 60 L 600 120 L 540 160 L 480 160 L 450 120 Z"
+            fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5"
+          />
+          {/* British Isles */}
+          <path d="M 440 100 L 460 90 L 460 110 L 440 120 Z" fill="#1E293B" stroke="#38BDF8" strokeWidth="1" />
+
+          {/* Africa */}
+          <path
+            d="M 460 170 L 580 170 L 640 230 L 590 340 L 520 420 L 480 340 L 440 250 Z"
+            fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5"
+          />
+          {/* Madagascar */}
+          <path d="M 640 340 L 660 330 L 650 370 L 630 370 Z" fill="#1E293B" stroke="#38BDF8" strokeWidth="1" />
+
+          {/* Asia */}
+          <path
+            d="M 580 60 L 920 60 L 960 160 L 880 260 L 820 280 L 760 270 L 720 220 L 660 220 L 600 120 Z"
+            fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5"
+          />
+          {/* Indian Subcontinent */}
+          <path d="M 680 220 L 740 220 L 720 290 L 690 280 Z" fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5" />
+          {/* Japan Archipelagos */}
+          <path d="M 880 140 L 910 130 L 900 180 L 880 170 Z" fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5" />
+
+          {/* Australia & Oceania */}
+          <path
+            d="M 780 340 L 900 330 L 920 400 L 880 440 L 800 430 L 760 380 Z"
+            fill="#1E293B" stroke="#38BDF8" strokeWidth="1.5"
+          />
+          {/* New Zealand */}
+          <path d="M 940 420 L 960 410 L 950 450 Z" fill="#1E293B" stroke="#38BDF8" strokeWidth="1" />
+
+          {/* Antarctica */}
+          <path d="M 100 480 L 900 480 L 950 500 L 50 500 Z" fill="#334155" stroke="#94A3B8" strokeWidth="1" />
         </svg>
 
         {/* Selected Pin */}
@@ -110,16 +174,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             transition: 'all 0.1s ease',
           }}
         >
-          <div style={{ fontSize: '32px' }}>📍</div>
+          <div style={{ fontSize: '36px', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.8))' }}>📍</div>
           <div
             style={{
               backgroundColor: '#0284C7',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              fontSize: '11px',
-              fontWeight: '700',
+              color: '#FFF',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '800',
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+              border: '1px solid #38BDF8',
             }}
           >
             {selectedPin.lat}°, {selectedPin.lng}°
@@ -127,24 +193,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: '16px',
-        }}
-      >
+      {/* Footer */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px' }}>
         <span style={{ fontSize: '14px', color: '#94A3B8' }}>
-          Pin Coordinates: <strong>{selectedPin.lat}°, {selectedPin.lng}°</strong>
+          Pin Coordinates: <strong style={{ color: '#38BDF8' }}>{selectedPin.lat}°, {selectedPin.lng}°</strong>
         </span>
         <button
           onClick={onSubmitGuess}
           style={{
             padding: '14px 28px',
             fontSize: '16px',
-            fontWeight: '800',
-            borderRadius: '10px',
+            fontWeight: '900',
+            borderRadius: '12px',
             border: 'none',
             backgroundColor: '#10B981',
             color: '#FFFFFF',

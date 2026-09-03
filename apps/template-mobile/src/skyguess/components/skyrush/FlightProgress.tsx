@@ -18,17 +18,33 @@ export const FlightProgress: React.FC<FlightProgressProps> = ({ distanceMiles })
         <span>🌎 EARTH CIRCUMFERENCE</span>
       </div>
 
-      <div style={{ height: '6px', backgroundColor: '#1E293B', borderRadius: '4px', overflow: 'hidden', border: '1px solid #334155', position: 'relative' }}>
+      <div style={{ height: '8px', backgroundColor: '#1E293B', borderRadius: '6px', overflow: 'visible', border: '1px solid #334155', position: 'relative' }}>
         <div
           style={{
             height: '100%',
             width: `${progressPercent}%`,
             background: 'linear-gradient(90deg, #0284C7 0%, #38BDF8 100%)',
-            borderRadius: '4px',
-            transition: 'width 0.4s ease',
-            boxShadow: '0 0 8px rgba(56, 189, 248, 0.6)',
+            borderRadius: '6px',
+            transition: 'width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            boxShadow: '0 0 10px rgba(56, 189, 248, 0.6)',
           }}
         />
+
+        {/* Sliding Plane Icon on Track */}
+        <div
+          style={{
+            position: 'absolute',
+            left: `${progressPercent}%`,
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: '14px',
+            transition: 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            pointerEvents: 'none',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
+          }}
+        >
+          ✈️
+        </div>
       </div>
     </div>
   );
