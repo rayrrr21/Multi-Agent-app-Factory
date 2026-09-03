@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { registerRootComponent } from 'expo';
 import { View, Text, TextInput, Button, StyleSheet, Platform } from 'react-native';
+import { SEEDED_LOCATIONS } from './src/skyguess/locations';
+import { calculateHaversineDistance, calculateDailyScore, calculatePercentile } from './src/skyguess/scoring';
+import { LocationRecord } from './src/skyguess/types';
 
 export default function App() {
+  // Navigation & User Auth state
   const [currentPath, setCurrentPath] = useState('/');
   const [isAuth, setIsAuth] = useState(false);
   const [email, setEmail] = useState('');
@@ -10,17 +14,29 @@ export default function App() {
   const [displayName, setDisplayName] = useState('Jane Doe');
   const [statusMessage, setStatusMessage] = useState('');
 
-  // App Factory Generator State
-  const [appIdea, setAppIdea] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('template-mobile');
-  const [isBuilding, setIsBuilding] = useState(false);
-  const [buildLogs, setBuildLogs] = useState([]);
-  const [generatedApp, setGeneratedApp] = useState(null);
+  // Daily SkyGuess Game State
+  const [dailyStreak, setDailyStreak] = useState(7);
+  const [dailyCompleted, setDailyCompleted] = useState(false);
+  const [dailyResult, setDailyResult] = useState(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [selectedPin, setSelectedPin] = useState({ lat: 20, lng: 0 });
 
-  // Generated App Interactive State (for previewing the generated app live)
-  const [generatedItems, setGeneratedItems] = useState([]);
-  const [newItemText, setNewItemText] = useState('');
-  const [generatedTab, setGeneratedTab] = useState('app'); // 'app' or 'code'
+  // SkyRush Arcade Game State
+  const [skyRushActive, setSkyRushActive] = useState(false);
+  const [skyRushIndex, setSkyRushIndex] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [distanceMiles, setDistanceMiles] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [combo, setCombo] = useState(1);
+  const [isFlightOver, setIsFlightOver] = useState(false);
+  const [bestFlight, setBestFlight] = useState(18422);
+  const [altitudeLevel, setAltitudeLevel] = useState('30,000 FT'); // '30,000 FT', '10,000 FT', '3,000 FT'
+  const [altitudeMultiplier, setAltitudeMultiplier] = useState(5);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [feedbackState, setFeedbackState] = useState(null); // 'correct' | 'wrong'
+
+  // Daily Challenge Location (Seeded: Salt Lake City)
+  const todayLocation = SEEDED_LOCATIONS[0];
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -37,17 +53,8 @@ export default function App() {
       const savedName = window.localStorage.getItem('displayName');
       if (savedName) setDisplayName(savedName);
 
-      // Check if there is a previously generated app in localStorage
-      const savedApp = window.localStorage.getItem('generatedApp');
-      if (savedApp) {
-        try {
-          const parsed = JSON.parse(savedApp);
-          setGeneratedApp(parsed);
-          setGeneratedItems(parsed.defaultItems || []);
-        } catch (err) {
-          console.error(err);
-        }
-      }
+      const savedBest = window.localStorage.getItem('skyguess_best_flight');
+      if (savedBest) setBestFlight(parseInt(savedBest, 10));
 
       return () => {
         window.removeEventListener('popstate', handlePopState);
@@ -87,118 +94,150 @@ export default function App() {
     setStatusMessage('Profile updated');
   };
 
-  // REAL AGENT BUILD ENGINE: Analyzes prompt and builds a real interactive app structure
-  const handleStartBuild = () => {
-    if (!appIdea.trim()) {
-      alert('Please enter an app description (e.g. "Fitness Tracker", "E-commerce store", "Task Manager")');
-      return;
-    }
-
-    setIsBuilding(true);
-    setBuildLogs(['[00:01] ⚡ Parsing app prompt & domain requirements...']);
-
-    const promptLower = appIdea.toLowerCase();
-    let appCategory = 'Task & Workflow App';
-    let appTitle = 'Custom App';
-    let defaultItems = [];
-    let codeSnippet = '';
-
-    if (promptLower.includes('fit') || promptLower.includes('work') || promptLower.includes('gym') || promptLower.includes('health')) {
-      appCategory = 'Fitness & Health Tracker';
-      appTitle = 'FitPulse Pro';
-      defaultItems = [
-        { id: 1, name: 'Bench Press - 4 sets x 10 reps', tag: 'Strength', completed: true },
-        { id: 2, name: 'Morning 5K Jog', tag: 'Cardio', completed: false },
-        { id: 3, name: 'Protein Shake & Hydration', tag: 'Nutrition', completed: false },
-      ];
-      codeSnippet = `// Generated src/screens/FitnessTracker.tsx\nimport React from 'react';\nimport { View, Text, FlatList } from 'react-native';\nimport { supabase } from '../lib/supabase';\n\nexport default function FitnessTracker() {\n  return (\n    <View style={{ flex: 1, padding: 20 }}>\n      <Text style={{ fontSize: 24, fontWeight: 'bold' }}>FitPulse Workout Logger</Text>\n      {/* Supabase workouts table subscription */}\n    </View>\n  );\n}`;
-    } else if (promptLower.includes('shop') || promptLower.includes('store') || promptLower.includes('buy') || promptLower.includes('commerce') || promptLower.includes('e-com')) {
-      appCategory = 'E-Commerce Mobile Storefront';
-      appTitle = 'NexStore Mobile';
-      defaultItems = [
-        { id: 1, name: 'Wireless Noise-Canceling Headphones - $199', tag: 'Electronics', completed: false },
-        { id: 2, name: 'Ergonomic Minimalist Desk Mat - $45', tag: 'Workspace', completed: false },
-        { id: 3, name: 'Smart Fitness Band V2 - $89', tag: 'Wearables', completed: true },
-      ];
-      codeSnippet = `// Generated src/screens/Storefront.tsx\nimport React from 'react';\nimport { View, Text, TouchableOpacity } from 'react-native';\n\nexport default function Storefront() {\n  return (\n    <View style={{ flex: 1, backgroundColor: '#0F172A' }}>\n      <Text style={{ color: '#FFF', fontSize: 24 }}>NexStore Featured Catalog</Text>\n    </View>\n  );\n}`;
-    } else if (promptLower.includes('finance') || promptLower.includes('money') || promptLower.includes('pay') || promptLower.includes('budget') || promptLower.includes('crypto')) {
-      appCategory = 'Finance & Expense Manager';
-      appTitle = 'VaultFlow';
-      defaultItems = [
-        { id: 1, name: 'Cloud Hosting Subscription - $29.00', tag: 'Business', completed: true },
-        { id: 2, name: 'Client Payment Received - +$1,250.00', tag: 'Income', completed: true },
-        { id: 3, name: 'Office Supplies - $64.20', tag: 'Expense', completed: false },
-      ];
-      codeSnippet = `// Generated src/screens/VaultFlow.tsx\nimport React from 'react';\nimport { View, Text } from 'react-native';\n\nexport default function VaultFlow() {\n  return (\n    <View style={{ padding: 20 }}>\n      <Text style={{ fontSize: 24 }}>VaultFlow Balance & Transactions</Text>\n    </View>\n  );\n}`;
-    } else {
-      appCategory = 'Smart Workflow & Task Manager';
-      appTitle = appIdea.slice(0, 20) + (appIdea.length > 20 ? '...' : '');
-      defaultItems = [
-        { id: 1, name: 'Set up Supabase database schema & auth policies', tag: 'Backend', completed: true },
-        { id: 2, name: 'Design responsive navigation layout with Expo Router', tag: 'UI/UX', completed: true },
-        { id: 3, name: 'Verify Playwright 7-gate E2E quality contract', tag: 'Testing', completed: false },
-      ];
-      codeSnippet = `// Generated src/screens/CustomApp.tsx\nimport React from 'react';\nimport { View, Text } from 'react-native';\n\nexport default function CustomApp() {\n  return (\n    <View style={{ padding: 20 }}>\n      <Text style={{ fontSize: 24 }}>${appTitle}</Text>\n    </View>\n  );\n}`;
-    }
-
-    setTimeout(() => {
-      setBuildLogs((prev) => [...prev, '[00:02] 🤖 Multi-Agent Swarm: Architecting component tree & database tables...']);
-    }, 1000);
-
-    setTimeout(() => {
-      setBuildLogs((prev) => [...prev, '[00:03] 🛡️ Running Supabase key isolation check & Playwright E2E contract...']);
-    }, 2000);
-
-    setTimeout(() => {
-      const appObject = {
-        title: appTitle,
-        category: appCategory,
-        prompt: appIdea,
-        template: selectedTemplate,
-        defaultItems: defaultItems,
-        codeSnippet: codeSnippet,
-        createdAt: new Date().toLocaleTimeString(),
-      };
-
-      setGeneratedApp(appObject);
-      setGeneratedItems(defaultItems);
-      setIsBuilding(false);
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('generatedApp', JSON.stringify(appObject));
-      }
-    }, 3200);
-  };
-
-  const handleAddItem = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (!newItemText.trim()) return;
-    const newItem = {
-      id: Date.now(),
-      name: newItemText.trim(),
-      tag: 'New Entry',
-      completed: false,
-    };
-    setGeneratedItems([newItem, ...generatedItems]);
-    setNewItemText('');
-  };
-
-  const toggleItemComplete = (id) => {
-    setGeneratedItems(
-      generatedItems.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item))
+  // --------------------------------------------------------------------------
+  // DAILY SKYGUESS LOGIC
+  // --------------------------------------------------------------------------
+  const handleLockDailyGuess = () => {
+    const distKm = calculateHaversineDistance(
+      selectedPin.lat,
+      selectedPin.lng,
+      todayLocation.latitude,
+      todayLocation.longitude
     );
+    const score = calculateDailyScore(distKm);
+    const percentile = calculatePercentile(score);
+
+    setDailyResult({
+      distKm,
+      score,
+      percentile,
+      guessLat: selectedPin.lat,
+      guessLng: selectedPin.lng,
+    });
+    setDailyCompleted(true);
+    setDailyStreak((prev) => prev + 1);
+    setMapOpen(false);
   };
 
-  const deleteItem = (id) => {
-    setGeneratedItems(generatedItems.filter((item) => item.id !== id));
+  // --------------------------------------------------------------------------
+  // SKYRUSH ARCADE LOGIC
+  // --------------------------------------------------------------------------
+  const startSkyRushRun = () => {
+    setSkyRushActive(true);
+    setSkyRushIndex(0);
+    setLives(3);
+    setDistanceMiles(0);
+    setStreak(0);
+    setCombo(1);
+    setIsFlightOver(false);
+    setAltitudeLevel('30,000 FT');
+    setAltitudeMultiplier(5);
+    setSelectedAnswer(null);
+    setFeedbackState(null);
+  };
+
+  const currentRushLocation = SEEDED_LOCATIONS[skyRushIndex % SEEDED_LOCATIONS.length];
+
+  // Question generator for SkyRush
+  const getSkyRushQuestion = (loc) => {
+    if (skyRushIndex % 4 === 0) {
+      return {
+        prompt: `Is this ${loc.region} or ${loc.distractors.region}?`,
+        optionA: loc.region,
+        optionB: loc.distractors.region,
+        correct: 'A',
+      };
+    }
+    if (skyRushIndex % 4 === 1) {
+      return {
+        prompt: `Is this ${loc.country} or ${loc.distractors.country}?`,
+        optionA: loc.distractors.country,
+        optionB: loc.country,
+        correct: 'B',
+      };
+    }
+    if (skyRushIndex % 4 === 2) {
+      return {
+        prompt: `Terrain check: ${loc.terrain} or ${loc.distractors.terrain}?`,
+        optionA: loc.terrain,
+        optionB: loc.distractors.terrain,
+        correct: 'A',
+      };
+    }
+    return {
+      prompt: `Which city is this? ${loc.city} or ${loc.distractors.city}?`,
+      optionA: loc.distractors.city,
+      optionB: loc.city,
+      correct: 'B',
+    };
+  };
+
+  const currentQuestion = getSkyRushQuestion(currentRushLocation);
+
+  const handleDescendAltitude = () => {
+    if (altitudeLevel === '30,000 FT') {
+      setAltitudeLevel('10,000 FT');
+      setAltitudeMultiplier(3);
+    } else if (altitudeLevel === '10,000 FT') {
+      setAltitudeLevel('3,000 FT');
+      setAltitudeMultiplier(1);
+    }
+  };
+
+  const handleAnswerSkyRush = (option) => {
+    if (feedbackState || isFlightOver) return;
+    setSelectedAnswer(option);
+
+    if (option === currentQuestion.correct) {
+      setFeedbackState('correct');
+      const distanceGained = Math.round(450 * combo * (altitudeMultiplier / 2));
+      const newTotalDistance = distanceMiles + distanceGained;
+      setDistanceMiles(newTotalDistance);
+      setStreak((prev) => prev + 1);
+      setCombo((prev) => Math.min(prev + 1, 8));
+
+      if (newTotalDistance > bestFlight) {
+        setBestFlight(newTotalDistance);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('skyguess_best_flight', newTotalDistance.toString());
+        }
+      }
+
+      setTimeout(() => {
+        setFeedbackState(null);
+        setSelectedAnswer(null);
+        setAltitudeLevel('30,000 FT');
+        setAltitudeMultiplier(5);
+        setSkyRushIndex((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setFeedbackState('wrong');
+      const newLives = lives - 1;
+      setLives(newLives);
+      setCombo(1);
+
+      if (newLives <= 0) {
+        setTimeout(() => {
+          setIsFlightOver(true);
+        }, 1000);
+      } else {
+        setTimeout(() => {
+          setFeedbackState(null);
+          setSelectedAnswer(null);
+          setAltitudeLevel('30,000 FT');
+          setAltitudeMultiplier(5);
+          setSkyRushIndex((prev) => prev + 1);
+        }, 1000);
+      }
+    }
   };
 
   const fillDemoCreds = () => {
-    setEmail('developer@factory.ai');
-    setPassword('FactoryPass2026!');
+    setEmail('player@skyguess.app');
+    setPassword('SkyGuess2026!');
   };
 
-  // Render LoginForm helper to ensure 100% E2E test selector compatibility
+  // E2E Contract helper: LoginForm
   const renderLoginForm = () => {
     if (Platform.OS === 'web') {
       return (
@@ -214,9 +253,9 @@ export default function App() {
           color: '#F8FAFC'
         }}>
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <span style={{ fontSize: '32px' }}>🔐</span>
-            <h2 style={{ fontSize: '24px', fontWeight: '700', marginTop: '8px', marginBottom: '4px' }}>Developer Sign In</h2>
-            <p style={{ color: '#94A3B8', fontSize: '14px' }}>Access your App Factory workspace and agent swarms</p>
+            <span style={{ fontSize: '36px' }}>✈️</span>
+            <h2 style={{ fontSize: '24px', fontWeight: '700', marginTop: '8px', marginBottom: '4px' }}>Player Sign In</h2>
+            <p style={{ color: '#94A3B8', fontSize: '14px' }}>Save your daily streaks and SkyRush flight records</p>
           </div>
 
           <form data-testid="login-form" onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -226,7 +265,7 @@ export default function App() {
                 data-testid="email-input"
                 name="email"
                 type="email"
-                placeholder="developer@factory.ai"
+                placeholder="player@skyguess.app"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{
@@ -266,15 +305,13 @@ export default function App() {
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={fillDemoCreds}
-                style={{ background: 'none', border: 'none', color: '#38BDF8', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Auto-fill demo credentials
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={fillDemoCreds}
+              style={{ background: 'none', border: 'none', color: '#38BDF8', fontSize: '13px', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline' }}
+            >
+              Auto-fill demo credentials
+            </button>
 
             <button
               type="submit"
@@ -283,16 +320,16 @@ export default function App() {
                 width: '100%',
                 padding: '14px',
                 fontSize: '16px',
-                fontWeight: '600',
+                fontWeight: '700',
                 borderRadius: '8px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #6366F1 0%, #3B82F6 100%)',
+                background: 'linear-gradient(135deg, #0284C7 0%, #2563EB 100%)',
                 color: '#FFFFFF',
                 cursor: 'pointer',
-                boxShadow: '0 4px 14px 0 rgba(99, 102, 241, 0.39)'
+                boxShadow: '0 4px 14px 0 rgba(2, 132, 199, 0.39)'
               }}
             >
-              Log In to Workspace →
+              Log In & Save Streak →
             </button>
           </form>
         </div>
@@ -301,7 +338,7 @@ export default function App() {
 
     return (
       <View style={styles.content} testID="login-form">
-        <Text style={styles.title}>Developer Sign In</Text>
+        <Text style={styles.title}>Player Sign In</Text>
         <TextInput testID="email-input" style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} />
         <TextInput testID="password-input" style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
         <Button testID="login-submit-btn" title="Log In" onPress={handleLoginSubmit} />
@@ -325,20 +362,20 @@ export default function App() {
         return (
           <div style={{ maxWidth: '640px', margin: '40px auto', padding: '32px', borderRadius: '16px', backgroundColor: '#1E293B', color: '#F8FAFC', border: '1px solid #334155' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #334155' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold' }}>
-                {displayName.charAt(0) || 'D'}
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold' }}>
+                {displayName.charAt(0) || 'P'}
               </div>
               <div>
                 <h2 style={{ margin: 0, fontSize: '22px' }}>{displayName}</h2>
-                <span style={{ fontSize: '13px', color: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '12px', display: 'inline-block', marginTop: '4px' }}>
-                  ● Lead App Architect
+                <span style={{ fontSize: '13px', color: '#38BDF8', backgroundColor: 'rgba(56, 189, 248, 0.1)', padding: '4px 8px', borderRadius: '12px', display: 'inline-block', marginTop: '4px' }}>
+                  ✈️ SkyGuess Explorer • 🔥 {dailyStreak} Day Streak
                 </span>
               </div>
             </div>
 
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#CBD5E1', marginBottom: '6px' }}>Display Name</label>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#CBD5E1', marginBottom: '6px' }}>Pilot Call Sign / Display Name</label>
                 <input
                   name="displayName"
                   type="text"
@@ -367,7 +404,7 @@ export default function App() {
                 onClick={handleLogout}
                 style={{ width: '100%', padding: '12px', fontSize: '15px', fontWeight: '600', borderRadius: '8px', border: '1px solid #EF4444', backgroundColor: 'transparent', color: '#EF4444', cursor: 'pointer' }}
               >
-                Log Out of Workspace
+                Log Out
               </button>
             </div>
           </div>
@@ -392,8 +429,8 @@ export default function App() {
           <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 20px', color: '#F8FAFC' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', margin: '0 0 6px 0' }}>Factory Operations Dashboard</h1>
-                <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px' }}>Real-time telemetry, build swarms, and production contract health</p>
+                <h1 style={{ fontSize: '28px', fontWeight: '800', margin: '0 0 6px 0' }}>SkyGuess Global Leaderboard & Stats</h1>
+                <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px' }}>Daily challenge rankings and SkyRush flight distance telemetry</p>
               </div>
               <button
                 type="button"
@@ -405,48 +442,29 @@ export default function App() {
               </button>
             </div>
 
-            {/* Metrics Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+            {/* Stats Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
               <div style={{ backgroundColor: '#1E293B', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>TOTAL APPS BUILT</span>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: '#38BDF8', marginTop: '8px' }}>15</div>
-                <span style={{ fontSize: '12px', color: '#10B981' }}>↑ +1 generated now</span>
+                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>BEST SKYRUSH FLIGHT</span>
+                <div style={{ fontSize: '30px', fontWeight: '800', color: '#38BDF8', marginTop: '6px' }}>{bestFlight.toLocaleString()} mi</div>
+                <span style={{ fontSize: '12px', color: '#10B981' }}>Global Rank #42</span>
               </div>
               <div style={{ backgroundColor: '#1E293B', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>ACTIVE AGENT SWARMS</span>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: '#A855F7', marginTop: '8px' }}>3</div>
-                <span style={{ fontSize: '12px', color: '#A855F7' }}>Running builds...</span>
+                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>DAILY STREAK</span>
+                <div style={{ fontSize: '30px', fontWeight: '800', color: '#F59E0B', marginTop: '6px' }}>🔥 {dailyStreak} Days</div>
+                <span style={{ fontSize: '12px', color: '#F59E0B' }}>Active Streak</span>
               </div>
               <div style={{ backgroundColor: '#1E293B', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>E2E CONTRACT HEALTH</span>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: '#10B981', marginTop: '8px' }}>7 / 7</div>
-                <span style={{ fontSize: '12px', color: '#10B981' }}>100% Green (Playwright)</span>
+                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>PASSPORT DISCOVERED</span>
+                <div style={{ fontSize: '30px', fontWeight: '800', color: '#A855F7', marginTop: '6px' }}>47 / 195</div>
+                <span style={{ fontSize: '12px', color: '#A855F7' }}>24% Earth Explored</span>
               </div>
               <div style={{ backgroundColor: '#1E293B', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>SUPABASE BACKEND</span>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: '#F59E0B', marginTop: '8px' }}>Isolated</div>
-                <span style={{ fontSize: '12px', color: '#10B981' }}>Elevated keys secured</span>
+                <span style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '600' }}>E2E CONTRACT GUARD</span>
+                <div style={{ fontSize: '30px', fontWeight: '800', color: '#10B981', marginTop: '6px' }}>7 / 7 Green</div>
+                <span style={{ fontSize: '12px', color: '#10B981' }}>Playwright Verified</span>
               </div>
             </div>
-
-            {/* Generated App Card */}
-            {generatedApp ? (
-              <div style={{ backgroundColor: '#1E293B', borderRadius: '12px', border: '1px solid #38BDF8', padding: '24px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '12px', color: '#38BDF8', fontWeight: '700', textTransform: 'uppercase' }}>Recently Generated App</span>
-                    <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', color: '#F8FAFC' }}>{generatedApp.title}</h3>
-                    <p style={{ margin: '4px 0 0 0', color: '#94A3B8', fontSize: '13px' }}>"{generatedApp.prompt}"</p>
-                  </div>
-                  <button
-                    onClick={() => navigate('/')}
-                    style={{ padding: '8px 16px', backgroundColor: '#38BDF8', color: '#0F172A', fontWeight: '700', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    Open Live App →
-                  </button>
-                </div>
-              </div>
-            ) : null}
           </div>
         );
       }
@@ -459,249 +477,307 @@ export default function App() {
       );
     }
 
-    // ROUTE: / (Home - App Generator & Live App Workspace)
+    // ROUTE: / (Home - SKYGUESS Main Hub)
     if (Platform.OS === 'web') {
-      return (
-        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 20px', color: '#F8FAFC' }}>
-          {/* Hero Header */}
-          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#818CF8', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: '600', marginBottom: '16px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-              <span>⚡ MULTI-AGENT APP FACTORY PLATFORM</span>
-            </div>
-            <h1 style={{ fontSize: '44px', fontWeight: '900', letterSpacing: '-0.02em', margin: '0 0 12px 0', background: 'linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Describe Your App Idea. Generate a Live Working App.
-            </h1>
-            <p style={{ fontSize: '17px', color: '#94A3B8', maxWidth: '680px', margin: '0 auto' }}>
-              Type any app prompt below. The AI Agent Swarm will generate real working code, features, and a live interactive preview instantly.
-            </p>
-          </div>
+      // ----------------------------------------------------------------------
+      // MODE 2 — SKYRUSH ARCADE ACTIVE RUN
+      // ----------------------------------------------------------------------
+      if (skyRushActive) {
+        if (isFlightOver) {
+          return (
+            <div style={{ maxWidth: '540px', margin: '40px auto', padding: '36px 28px', backgroundColor: '#1E293B', borderRadius: '20px', border: '2px solid #EF4444', color: '#F8FAFC', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25)' }}>
+              <span style={{ fontSize: '48px' }}>💥</span>
+              <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#EF4444', margin: '8px 0 4px 0' }}>FLIGHT OVER</h1>
+              <p style={{ color: '#94A3B8', fontSize: '15px', fontStyle: 'italic', marginBottom: '28px' }}>You crashed in Mongolia.</p>
 
-          {/* Interactive Creator Input Box */}
-          <div style={{ backgroundColor: '#1E293B', borderRadius: '16px', border: '1px solid #334155', padding: '28px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)', marginBottom: '40px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🪄</span> App Generator Prompt
-            </h3>
-            
-            <div style={{ marginBottom: '16px' }}>
-              <textarea
-                rows={3}
-                placeholder="e.g. A workout fitness tracker, an e-commerce catalog, a crypto wallet, or a smart task manager..."
-                value={appIdea}
-                onChange={(e) => setAppIdea(e.target.value)}
-                style={{ width: '100%', padding: '14px', fontSize: '15px', borderRadius: '10px', border: '1px solid #334155', backgroundColor: '#0F172A', color: '#F8FAFC', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#94A3B8', fontWeight: '600' }}>Target Architecture:</span>
-                <select
-                  value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(e.target.value)}
-                  style={{ backgroundColor: '#0F172A', color: '#F8FAFC', border: '1px solid #334155', padding: '8px 12px', borderRadius: '8px', fontSize: '14px' }}
-                >
-                  <option value="template-mobile">React Native + Expo Mobile (iOS/Android/Web)</option>
-                  <option value="saas-portal">Full-Stack SaaS Web Portal</option>
-                  <option value="e-commerce">E-Commerce Mobile Storefront</option>
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '32px' }}>
+                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>DISTANCE FLOWN</span>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#38BDF8', marginTop: '4px' }}>✈️ {distanceMiles.toLocaleString()} mi</div>
+                </div>
+                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>LOCATIONS IDENTIFIED</span>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#10B981', marginTop: '4px' }}>🌎 {skyRushIndex}</div>
+                </div>
+                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>BEST STREAK</span>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#F59E0B', marginTop: '4px' }}>🔥 {streak}</div>
+                </div>
+                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <span style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '600' }}>BEST COMBO</span>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#A855F7', marginTop: '4px' }}>⚡ ×{combo}</div>
+                </div>
               </div>
 
               <button
-                type="button"
-                onClick={handleStartBuild}
-                disabled={isBuilding}
-                style={{
-                  padding: '14px 28px',
-                  fontSize: '16px',
-                  fontWeight: '700',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: isBuilding ? '#475569' : 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                  color: '#FFFFFF',
-                  cursor: isBuilding ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.4)'
-                }}
+                onClick={startSkyRushRun}
+                style={{ width: '100%', padding: '16px', fontSize: '18px', fontWeight: '800', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#FFFFFF', cursor: 'pointer', marginBottom: '12px', boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.4)' }}
               >
-                {isBuilding ? '⚡ Agent Swarm Building...' : '🚀 Generate Live App Now'}
+                ✈️ FLY AGAIN
+              </button>
+
+              <button
+                onClick={() => setSkyRushActive(false)}
+                style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: '600', borderRadius: '10px', border: '1px solid #334155', backgroundColor: 'transparent', color: '#94A3B8', cursor: 'pointer' }}
+              >
+                Exit to Main Menu
               </button>
             </div>
+          );
+        }
 
-            {/* Live Agent Build Terminal Output */}
-            {isBuilding || buildLogs.length > 0 ? (
-              <div style={{ marginTop: '20px', padding: '14px', borderRadius: '8px', backgroundColor: '#0F172A', border: '1px solid #38BDF8', color: '#38BDF8', fontSize: '13px', fontFamily: 'monospace', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {buildLogs.map((log, index) => (
-                  <div key={index}>{log}</div>
-                ))}
+        return (
+          <div style={{ maxWidth: '640px', margin: '20px auto', padding: '20px', color: '#F8FAFC' }}>
+            {/* SkyRush Top HUD */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', backgroundColor: '#1E293B', borderRadius: '14px', border: '1px solid #334155', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '20px', fontWeight: '800', color: '#38BDF8' }}>
+                ✈️ <span>{distanceMiles.toLocaleString()} MI</span>
               </div>
-            ) : null}
+
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', fontSize: '14px', fontWeight: '700' }}>
+                <span style={{ color: '#F59E0B' }}>🔥 {streak}</span>
+                <span style={{ color: '#A855F7' }}>⚡ ×{combo}</span>
+                <span>
+                  {'❤️'.repeat(lives)}
+                  {'🖤'.repeat(3 - lives)}
+                </span>
+              </div>
+            </div>
+
+            {/* Altitude Risk Banner */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0F172A', padding: '10px 16px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '16px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#F8FAFC' }}>
+                ALTITUDE: <span style={{ color: '#F59E0B' }}>{altitudeLevel}</span> ({altitudeMultiplier}× Reward)
+              </span>
+              {altitudeLevel !== '3,000 FT' ? (
+                <button
+                  onClick={handleDescendAltitude}
+                  style={{ padding: '4px 10px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', border: '1px solid #F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', cursor: 'pointer' }}
+                >
+                  🛬 DESCEND (Better View)
+                </button>
+              ) : null}
+            </div>
+
+            {/* Aerial Image Card */}
+            <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', height: '320px', marginBottom: '20px', border: '1px solid #334155', backgroundColor: '#1E293B' }}>
+              <img
+                src={currentRushLocation.imageUrl}
+                alt="Aerial view"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  filter: altitudeLevel === '30,000 FT' ? 'blur(4px)' : altitudeLevel === '10,000 FT' ? 'blur(1.5px)' : 'none',
+                  transition: 'filter 0.3s ease'
+                }}
+              />
+              <div style={{ position: 'absolute', bottom: '12px', left: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
+                Question {skyRushIndex + 1}: {currentQuestion.prompt}
+              </div>
+            </div>
+
+            {/* 2-Choice Action Buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <button
+                onClick={() => handleAnswerSkyRush('A')}
+                disabled={feedbackState !== null}
+                style={{
+                  padding: '20px',
+                  fontSize: '18px',
+                  fontWeight: '800',
+                  borderRadius: '12px',
+                  border: '2px solid #334155',
+                  backgroundColor: feedbackState && selectedAnswer === 'A' ? (feedbackState === 'correct' ? '#10B981' : '#EF4444') : '#1E293B',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {currentQuestion.optionA}
+              </button>
+
+              <button
+                onClick={() => handleAnswerSkyRush('B')}
+                disabled={feedbackState !== null}
+                style={{
+                  padding: '20px',
+                  fontSize: '18px',
+                  fontWeight: '800',
+                  borderRadius: '12px',
+                  border: '2px solid #334155',
+                  backgroundColor: feedbackState && selectedAnswer === 'B' ? (feedbackState === 'correct' ? '#10B981' : '#EF4444') : '#1E293B',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {currentQuestion.optionB}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // ----------------------------------------------------------------------
+      // MODE 1 — DAILY SKYGUESS PLAY & REVEAL MODAL
+      // ----------------------------------------------------------------------
+      return (
+        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '36px 20px', color: '#F8FAFC' }}>
+          {/* Main Tagline Banner */}
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h1 style={{ fontSize: '42px', fontWeight: '900', letterSpacing: '-0.02em', margin: '0 0 8px 0', background: 'linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              SKYGUESS
+            </h1>
+            <p style={{ fontSize: '18px', color: '#38BDF8', fontWeight: '600', margin: 0 }}>
+              See the world from above. Guess where you are.
+            </p>
           </div>
 
-          {/* ---------------------------------------------------------------------- */}
-          {/* LIVE GENERATED APP OUTPUT DISPLAY FRAME */}
-          {/* ---------------------------------------------------------------------- */}
-          {generatedApp ? (
-            <div style={{
-              backgroundColor: '#0F172A',
-              borderRadius: '16px',
-              border: '2px solid #6366F1',
-              boxShadow: '0 25px 50px -12px rgba(99, 102, 241, 0.25)',
-              overflow: 'hidden',
-              marginBottom: '40px'
-            }}>
-              {/* Live App Frame Header */}
-              <div style={{
-                backgroundColor: '#1E293B',
-                padding: '14px 24px',
-                borderBottom: '1px solid #334155',
-                display: 'flex',
-                justify: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#EF4444' }}></div>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#F59E0B' }}></div>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981' }}></div>
-                  </div>
-                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#F8FAFC' }}>
-                    📱 Live Output App: <span style={{ color: '#38BDF8' }}>{generatedApp.title}</span>
-                  </span>
-                  <span style={{ fontSize: '11px', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#10B981', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
-                    ● LIVE & INTERACTIVE
+          {/* Two Primary Mode Cards Layout */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+            
+            {/* CARD 1: DAILY SKYGUESS */}
+            <div style={{ backgroundColor: '#1E293B', borderRadius: '20px', border: '1px solid #334155', padding: '28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#38BDF8', letterSpacing: '0.05em' }}>DAILY SKYGUESS #042</span>
+                  <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>
+                    🔥 {dailyStreak}-day streak
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => setGeneratedTab('app')}
-                    style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '6px', border: 'none', backgroundColor: generatedTab === 'app' ? '#6366F1' : '#334155', color: '#FFF', fontWeight: '600', cursor: 'pointer' }}
-                  >
-                    📱 Live Interactive App
-                  </button>
-                  <button
-                    onClick={() => setGeneratedTab('code')}
-                    style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '6px', border: 'none', backgroundColor: generatedTab === 'code' ? '#6366F1' : '#334155', color: '#FFF', fontWeight: '600', cursor: 'pointer' }}
-                  >
-                    📄 Generated Source Code
-                  </button>
+                <div style={{ height: '200px', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px', position: 'relative' }}>
+                  <img src={todayLocation.imageUrl} alt="Today's SkyGuess" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', bottom: '8px', left: '8px', backgroundColor: 'rgba(15, 23, 42, 0.85)', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>
+                    Study the view. Find it on Earth.
+                  </div>
                 </div>
               </div>
 
-              {/* Tab 1: Live Interactive App Preview */}
-              {generatedTab === 'app' ? (
-                <div style={{ padding: '32px', backgroundColor: '#0F172A', color: '#F8FAFC' }}>
-                  {/* Generated App Header Banner */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #334155' }}>
-                    <div>
-                      <span style={{ fontSize: '12px', color: '#818CF8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{generatedApp.category}</span>
-                      <h2 style={{ margin: '4px 0 0 0', fontSize: '26px', fontWeight: '800' }}>{generatedApp.title}</h2>
-                      <p style={{ margin: '4px 0 0 0', color: '#94A3B8', fontSize: '13px' }}>Generated from prompt: "{generatedApp.prompt}"</p>
-                    </div>
-                    <span style={{ backgroundColor: '#1E293B', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: '#CBD5E1', border: '1px solid #334155' }}>
-                      Items Count: <strong>{generatedItems.length}</strong>
-                    </span>
-                  </div>
-
-                  {/* Add New Item / Feature Action Form */}
-                  <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-                    <input
-                      type="text"
-                      placeholder={`Add new entry to ${generatedApp.title}...`}
-                      value={newItemText}
-                      onChange={(e) => setNewItemText(e.target.value)}
-                      style={{ flex: 1, padding: '12px 16px', fontSize: '15px', borderRadius: '8px', border: '1px solid #334155', backgroundColor: '#1E293B', color: '#F8FAFC', outline: 'none' }}
-                    />
-                    <button
-                      type="submit"
-                      style={{ padding: '12px 24px', fontSize: '15px', fontWeight: '700', borderRadius: '8px', border: 'none', backgroundColor: '#6366F1', color: '#FFF', cursor: 'pointer' }}
-                    >
-                      + Add Item
-                    </button>
-                  </form>
-
-                  {/* Interactive Items List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {generatedItems.map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          display: 'flex',
-                          justify: 'space-between',
-                          alignItems: 'center',
-                          padding: '14px 18px',
-                          backgroundColor: '#1E293B',
-                          borderRadius: '10px',
-                          border: '1px solid #334155',
-                          textDecoration: item.completed ? 'line-through' : 'none',
-                          opacity: item.completed ? 0.6 : 1
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <input
-                            type="checkbox"
-                            checked={item.completed}
-                            onChange={() => toggleItemComplete(item.id)}
-                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                          />
-                          <span style={{ fontSize: '15px', fontWeight: '500' }}>{item.name}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontSize: '12px', backgroundColor: 'rgba(99, 102, 241, 0.2)', color: '#818CF8', padding: '3px 8px', borderRadius: '6px', fontWeight: '600' }}>
-                            {item.tag}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => deleteItem(item.id)}
-                            style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold' }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {dailyCompleted && dailyResult ? (
+                <div style={{ backgroundColor: '#0F172A', padding: '16px', borderRadius: '12px', border: '1px solid #10B981', textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: '#10B981' }}>{dailyResult.score.toLocaleString()} POINTS</div>
+                  <div style={{ fontSize: '14px', color: '#F8FAFC', margin: '4px 0' }}>{dailyResult.distKm} km away • <strong>TOP {dailyResult.percentile}% TODAY</strong></div>
+                  <div style={{ fontSize: '13px', color: '#94A3B8', marginTop: '6px' }}>Correct: {todayLocation.city}, {todayLocation.region}, {todayLocation.country}</div>
+                  <p style={{ fontSize: '12px', color: '#CBD5E1', fontStyle: 'italic', marginTop: '8px', marginBottom: '12px' }}>"{todayLocation.fact}"</p>
+                  <button
+                    onClick={() => alert(`SKYGUESS #042 🌎\n📍 ${dailyResult.score} pts\n🎯 ${dailyResult.distKm} km\n🔥 ${dailyStreak}-day streak\nTop ${dailyResult.percentile}%\nCan you beat me?`)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: '#38BDF8', color: '#0F172A', fontWeight: '800', cursor: 'pointer' }}
+                  >
+                    SHARE RESULT 📤
+                  </button>
                 </div>
               ) : (
-                /* Tab 2: Generated Source Code Viewer */
-                <div style={{ padding: '24px', backgroundColor: '#090D16', color: '#38BDF8', fontFamily: 'monospace', fontSize: '14px', overflowX: 'auto' }}>
-                  <pre style={{ margin: 0 }}>{generatedApp.codeSnippet}</pre>
-                </div>
+                <button
+                  onClick={() => setMapOpen(true)}
+                  style={{ width: '100%', padding: '16px', fontSize: '16px', fontWeight: '800', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #0284C7 0%, #2563EB 100%)', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(2, 132, 199, 0.4)' }}
+                >
+                  PLAY TODAY'S SKYGUESS 🎯
+                </button>
               )}
             </div>
-          ) : null}
 
-          {/* Quick Features Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-            <div style={{ backgroundColor: '#1E293B', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <div style={{ fontSize: '28px', marginBottom: '12px' }}>📱</div>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Cross-Platform Native</h3>
-              <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px', lineHeight: '1.5' }}>
-                Single codebase powered by React Native & Expo. Deploys seamlessly to iOS, Android, and Web browsers.
-              </p>
-            </div>
-            <div style={{ backgroundColor: '#1E293B', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <div style={{ fontSize: '28px', marginBottom: '12px' }}>🛡️</div>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>7-Gate E2E Quality Guard</h3>
-              <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px', lineHeight: '1.5' }}>
-                Automated Playwright test suite verifies authentication, protected navigation, profile persistence, and security isolation.
-              </p>
-            </div>
-            <div style={{ backgroundColor: '#1E293B', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <div style={{ fontSize: '28px', marginBottom: '12px' }}>🤖</div>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Multi-Agent Swarm</h3>
-              <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px', lineHeight: '1.5' }}>
-                Specialized subagents collaborate to architect, implement code, resolve linting, and enforce test contracts.
-              </p>
+            {/* CARD 2: SKYRUSH ARCADE */}
+            <div style={{ backgroundColor: '#1E293B', borderRadius: '20px', border: '1px solid #334155', padding: '28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#A855F7', letterSpacing: '0.05em' }}>SKYRUSH ARCADE</span>
+                  <span style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38BDF8', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>
+                    ✈️ Best: {bestFlight.toLocaleString()} mi
+                  </span>
+                </div>
+
+                <h2 style={{ fontSize: '24px', fontWeight: '800', margin: '0 0 8px 0', color: '#F8FAFC' }}>How far can you fly?</h2>
+                <p style={{ color: '#94A3B8', fontSize: '14px', lineHeight: '1.5', margin: '0 0 24px 0' }}>
+                  Fast, 1-thumb friendly aerial recognition runs. Answer questions rapidly, avoid crashing, and fly around the world.
+                </p>
+              </div>
+
+              <button
+                onClick={startSkyRushRun}
+                style={{ width: '100%', padding: '16px', fontSize: '16px', fontWeight: '800', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(168, 85, 247, 0.4)' }}
+              >
+                START SKYRUSH RUN ✈️
+              </button>
             </div>
           </div>
+
+          {/* INTERACTIVE MAP MODAL FOR DAILY GUESS */}
+          {mapOpen ? (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.95)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '24px', color: '#F8FAFC' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '22px' }}>MAKE YOUR GUESS</h2>
+                  <p style={{ margin: 0, color: '#94A3B8', fontSize: '13px' }}>Tap anywhere on the world map to place your pin, then lock in your guess.</p>
+                </div>
+                <button onClick={() => setMapOpen(false)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '24px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+              </div>
+
+              {/* Interactive World Map Canvas Container */}
+              <div
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const y = e.clientY - rect.top;
+                  const lng = (x / rect.width) * 360 - 180;
+                  const lat = 90 - (y / rect.height) * 180;
+                  setSelectedPin({ lat: Math.round(lat * 10) / 10, lng: Math.round(lng * 10) / 10 });
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#0F172A',
+                  borderRadius: '16px',
+                  border: '2px solid #38BDF8',
+                  position: 'relative',
+                  backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
+                  backgroundSize: '24px 24px',
+                  cursor: 'crosshair',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justify: 'center'
+                }}
+              >
+                {/* Stylized SVG World Map Lines */}
+                <svg width="100%" height="100%" style={{ opacity: 0.25, position: 'absolute' }}>
+                  <circle cx="50%" cy="50%" r="40%" stroke="#38BDF8" strokeWidth="2" fill="none" />
+                  <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#38BDF8" strokeWidth="1" strokeDasharray="4" />
+                  <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#38BDF8" strokeWidth="1" strokeDasharray="4" />
+                </svg>
+
+                {/* Placed Pin Marker */}
+                <div style={{
+                  position: 'absolute',
+                  left: `${((selectedPin.lng + 180) / 360) * 100}%`,
+                  top: `${((90 - selectedPin.lat) / 180) * 100}%`,
+                  transform: 'translate(-50%, -100%)',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={{ fontSize: '32px' }}>📍</div>
+                  <div style={{ backgroundColor: '#0284C7', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                    {selectedPin.lat}°, {selectedPin.lng}°
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                <span style={{ fontSize: '14px', color: '#94A3B8' }}>Selected Pin: <strong>{selectedPin.lat}°, {selectedPin.lng}°</strong></span>
+                <button
+                  onClick={handleLockDailyGuess}
+                  style={{ padding: '14px 28px', fontSize: '16px', fontWeight: '800', borderRadius: '10px', border: 'none', backgroundColor: '#10B981', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.4)' }}
+                >
+                  LOCK IN GUESS 🎯
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       );
     }
 
     return (
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Factory App</Text>
+        <Text style={styles.title}>Welcome to SkyGuess</Text>
       </View>
     );
   };
@@ -724,36 +800,42 @@ export default function App() {
           {/* App Logo & Title (E2E Contract Selector: data-testid="app-logo") */}
           <div
             data-testid="app-logo"
-            onClick={() => navigate('/')}
+            onClick={() => { setSkyRushActive(false); navigate('/'); }}
             style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
           >
-            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#FFF' }}>
-              ⚡
+            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, #0284C7 0%, #2563EB 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#FFF' }}>
+              ✈️
             </div>
-            <span style={{ fontSize: '18px', fontWeight: '800', color: '#F8FAFC', letterSpacing: '-0.01em' }}>
-              AppFactory OS
+            <span style={{ fontSize: '20px', fontWeight: '900', color: '#F8FAFC', letterSpacing: '-0.01em' }}>
+              SKYGUESS
             </span>
           </div>
 
           {/* Navigation Links */}
           <nav style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
             <button
-              onClick={() => navigate('/')}
-              style={{ background: 'none', border: 'none', color: currentPath === '/' ? '#38BDF8' : '#94A3B8', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+              onClick={() => { setSkyRushActive(false); navigate('/'); }}
+              style={{ background: 'none', border: 'none', color: currentPath === '/' && !skyRushActive ? '#38BDF8' : '#94A3B8', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
             >
-              Home / Creator
+              Daily SkyGuess
+            </button>
+            <button
+              onClick={() => { navigate('/'); startSkyRushRun(); }}
+              style={{ background: 'none', border: 'none', color: skyRushActive ? '#A855F7' : '#94A3B8', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
+            >
+              SkyRush Arcade
             </button>
             <button
               onClick={() => navigate('/dashboard')}
-              style={{ background: 'none', border: 'none', color: currentPath === '/dashboard' ? '#38BDF8' : '#94A3B8', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: currentPath === '/dashboard' ? '#38BDF8' : '#94A3B8', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
             >
-              Dashboard
+              Leaderboard & Stats
             </button>
             <button
               onClick={() => navigate('/profile')}
-              style={{ background: 'none', border: 'none', color: currentPath === '/profile' ? '#38BDF8' : '#94A3B8', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: currentPath === '/profile' ? '#38BDF8' : '#94A3B8', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
             >
-              Developer Profile
+              Pilot Profile
             </button>
           </nav>
 
@@ -762,14 +844,14 @@ export default function App() {
             {isAuth ? (
               <button
                 onClick={() => navigate('/profile')}
-                style={{ backgroundColor: '#1E293B', color: '#10B981', border: '1px solid #10B981', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                style={{ backgroundColor: '#1E293B', color: '#38BDF8', border: '1px solid #38BDF8', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
               >
-                ● Connected ({displayName.split(' ')[0]})
+                ● Pilot ({displayName.split(' ')[0]})
               </button>
             ) : (
               <button
                 onClick={() => navigate('/login')}
-                style={{ backgroundColor: '#6366F1', color: '#FFFFFF', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                style={{ backgroundColor: '#0284C7', color: '#FFFFFF', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
               >
                 Sign In
               </button>
@@ -778,7 +860,7 @@ export default function App() {
         </header>
       ) : (
         <View testID="app-logo" style={styles.header}>
-          <Text style={styles.headerText}>Factory Test App</Text>
+          <Text style={styles.headerText}>SkyGuess</Text>
         </View>
       )}
 
